@@ -1,42 +1,80 @@
 # Capsula
-The tool for encapsulating (preloading, including) related objects into **any** object.
+The tool for preloading related objects into **any** object to prevent N+1 queries.
 
-## How to use:
-
-Add to Gemfile:
+## INSTALL
 
 ```
 gem 'capsula'
 ```
 
-Then:
+## USE
 
 ```ruby
-starships = <get_your_space_fleet>
+require 'capsula'
 
-starships = StarshipsEncapsulator.new(starships).plans(
-  :fuel, :oxygen, :food, { spaceman: [:space_suit] }
+# our objects
+$cars = [ {name: 'A', brand_id: 3}, {name: 'B', brand_id: 1}, {name: 'C', brand_id: 1} ]
+$brands = [ {id: 1, name: 'Ferrari'}, {id: 2, name: 'Lamborghini'}, {id: 3, name: 'Rolls-Royce'} ]
+
+# let's preload cars with brands
+
+# our capsula-preloader
+class CarPreloader < Capsula::Base
+  plan_for :brand,
+    src_key: -> (car) { car[:brand_id] },
+    dst_key: -> (brand) { brand[:id] },
+    dst_loader: -> (ids, opt) { $brands.select { |b| ids.include?(b[:id]) } }
+end
+
+# ok, preload!
+$cars = CarPreloader.new($cars).plans(:brand).encapsulate
+
+$cars
+# => [{:name=>"A", :brand_id=>3}, {:name=>"B", :brand_id=>1}, {:name=>"C", :brand_id=>1}]
+
+# hm... where is brands?
+
+$cars.first.brand
+# => {:id=>3, :name=>"Rolls-Royce"}
+
+$cars[0].brand
+# => {:id=>3, :name=>"Rolls-Royce"}
+$cars[1].brand
+# => {:id=>1, :name=>"Ferrari"}
+$cars[2].brand
+# => {:id=>1, :name=>"Ferrari"}
+
+# so, source objects leave untouched, but was wrapped for methods interception
+```
+
+### ActiveRecord case:
+
+```ruby
+cars = Cars.where(id: [1,2,3]).to_a
+
+cars = CarPreloader.new(cars).plans(
+  :fuel, :food, { driver: [:car_keys, :sunglasses] }
 ).encapsulate
 
-# Now let's get a suit for our spaceman:
-starships.first&.spaceman&.space_suit
-=> <awesome space suit>
-# no actual action was triggered,
+cars.first.driver.car_keys
+=> <car_keys>
+# no actual action (any SQL query) was triggered,
 # immediate result was received from Capsula's wrapper
 ```
 
-Let's see how `StarshipsEncapsulator` looks:
+Let's see how `CarPreloader` looks:
 
 ```ruby
 class StarshipsEncapsulator < Capsula::Base
-  plan_for :fuel,
-    src_key: :fuel_id,
-    dst_key: :id,
-    dst_loader: ->(ids,opt){ MyFuelStation.find_fuel_by_ids(ids) }
-    # Example loader for ActiveRecord model Fuel:
-    # dst_loader: ->(ids,opt){ Fuel.where(id: ids).includes(opt[:plans]).to_a }
+  plan_for :driver,
+    src_key: :driver_id, # it's default value, so can be skipped
+    dst_key: :id,        # it's default value, so can be skipped
+    # Example loader for ActiveRecord model Driver:
+    dst_loader: ->(ids,opt){ Driver.where(id: ids).includes(opt[:plans]).to_a }
 
-  # Plans for other relations...
+  # # Plans for other relations:
+  # plan_for :fuel, ...
+  # plan_for :food, ...
 end
 ```
 
@@ -44,7 +82,7 @@ end
 
 **default values:**
 
-Definition for `src_key` and `dst_key` can be skipped if they values are `:fuel_id` (`<key_name>_id`) and `:id`
+Definition for `src_key` and `dst_key` can be skipped if they values are `:driver_id` (`<key_name>_id`) and `:id`
 
 **lambdas:**
 
@@ -94,12 +132,13 @@ class CustomLoader
   # This method is triggered by Capsula
   def collect_ids_and_load_relations
     ids = @items.map{ |i| i.fuel_id }
-    @store = Fuel.where(id: ids).to_a
+    preloads = Fuel.where(id: ids).to_a
+    @store = preloads.index_by(&:id)
   end
 
   # This method is calling by Capsula during encapsulation
   def get_preloads_for_object starship
-    @store.find { |fuel| starship.fuel_id == fuel.id }
+    @store[starship.fuel_id]
   end
 end
 

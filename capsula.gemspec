@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'capsula'
-  s.version     = '0.0.2'
+  s.version     = '0.0.3'
   s.date        = '2019-02-04'
   s.summary     = 'Encapsulating tool'
   s.description = 'The tool for encapsulating (preloading, including) related objects'

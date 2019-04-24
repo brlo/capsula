@@ -98,14 +98,24 @@ module Capsula
     end
 
     def native_preload key, dec, opt
-      # collect relation ids
-      ids = @items.map do |o|
-        get_key(o, dec[:src_key])
-      end.flatten.uniq.compact
+      # collect ids for preloading
+      ids =
+        @items.map do |o|
+          get_value(o, dec[:src_key])
+        end.flatten.uniq.compact
 
-      # preload relations
+      # preload and index objects
+      col =
+        if ids.any?
+          preloads = dec[:dst_loader].call(ids,opt)
+          # build hash: {id1 => Obj1, ..., idN => ObjN }
+          index_array_by(preloads) { |el| get_value(el, dec[:dst_key]) }
+        else
+          {}
+        end
+
       @collections[key] = {
-        collection: (ids.any? ? dec[:dst_loader].call(ids,opt) : []),
+        collection: col,
         declaration: dec
       }
     end
@@ -122,24 +132,26 @@ module Capsula
       dec = declaration
 
       @items.each do |i|
-        src_id = get_key(i, dec[:src_key])
+        src_id = get_value(i, dec[:src_key])
 
-        val = if src_id.is_a?(Array)
-          # if object has many links to related objects (Array)
-          col.select{|c| src_id.include?(c.id) }
-        else
-          # only one link
-          col.find{|c| get_key(c, dec[:dst_key]) == src_id }
-        end
+        val =
+          if src_id.is_a?(Array)
+            # if object has many links to related objects (Array)
+            col.values_at(*src_id)
+          else
+            # only one link
+            col[src_id]
+          end
+
         i[plan_key] = val
       end
     end
 
-    def get_key _object_, key_or_lambda
+    def get_value _object_, key_or_lambda
       case key_or_lambda
-      when Symbol, String
+      when ::Symbol, ::String
         _object_.send(key_or_lambda)
-      when Proc
+      when ::Proc
         key_or_lambda.call(_object_)
       else
         nil
@@ -162,5 +174,12 @@ module Capsula
       end
     end
 
+    # copypasted from activesupport
+    # https://www.rubydoc.info/github/rails/rails/Enumerable:index_by
+    def index_array_by arr
+      result = {}
+      arr.each { |elem| result[yield(elem)] = elem }
+      result
+    end
   end
 end

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    capsula (0.0.1)
+    capsula (0.0.2)
 
 GEM
   remote: https://rubygems.org/
@@ -82,4 +82,4 @@ DEPENDENCIES
   simplecov
 
 BUNDLED WITH
-   1.16.6
+   1.17.3
