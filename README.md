@@ -70,11 +70,28 @@ class StarshipsEncapsulator < Capsula::Base
     src_key: :driver_id, # it's default value, so can be skipped
     dst_key: :id,        # it's default value, so can be skipped
     # Example loader for ActiveRecord model Driver:
-    dst_loader: ->(ids,opt){ Driver.where(id: ids).includes(opt[:plans]).to_a }
+    dst_loader: -> (ids, opt) {
+        Driver.where(id: ids).includes(opt[:plans]).to_a
+      }
 
   # # Plans for other relations:
   # plan_for :fuel, ...
   # plan_for :food, ...
+end
+```
+
+### has_many example
+
+You can use custom encapsulator, but stantard encapsulator understand you if dst_key be placed inside array:
+
+```ruby
+class Sea < Capsula::Base
+  plan_for :crabs,
+    src_key: :name,
+    dst_key: [:sea_name], # key inside array signals about has_many relation
+    dst_loader: -> (sea_names, opt) {
+        Crab.where(sea_name: sea_names).includes(opt[:plans]).to_a
+      }
 end
 ```
 

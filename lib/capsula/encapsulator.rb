@@ -108,8 +108,14 @@ module Capsula
       col =
         if ids.any?
           preloads = dec[:dst_loader].call(ids,opt)
-          # build hash: {id1 => Obj1, ..., idN => ObjN }
-          index_array_by(preloads) { |el| get_value(el, dec[:dst_key]) }
+          dst_key = dec[:dst_key]
+          if dst_key.is_a?(Array)
+            # build hash: {id1 => [Obj1, ...], idN => [ObjN] }
+            preloads.group_by { |o| get_value(o, dst_key.first) }
+          else
+            # build hash: {id1 => Obj1, ..., idN => ObjN }
+            index_array_by(preloads) { |el| get_value(el, dst_key) }
+          end
         else
           {}
         end
@@ -130,12 +136,16 @@ module Capsula
     def native_encapsulation plan_key, preloaded_collection, declaration
       col = preloaded_collection
       dec = declaration
+      is_dst_key_array = dec[:dst_key].is_a?(Array)
 
       @items.each do |i|
         src_id = get_value(i, dec[:src_key])
 
         val =
-          if src_id.is_a?(Array)
+          if is_dst_key_array
+            # src has many dst
+            col[src_id] || []
+          elsif src_id.is_a?(Array)
             # if object has many links to related objects (Array)
             col.values_at(*src_id)
           else
@@ -151,6 +161,8 @@ module Capsula
       case key_or_lambda
       when ::Symbol, ::String
         _object_.send(key_or_lambda)
+      when ::Array
+        _object_.send(key_or_lambda[0])
       when ::Proc
         key_or_lambda.call(_object_)
       else

@@ -2,10 +2,11 @@ require 'capsula'
 
 RSpec.describe Capsula do
   let(:klass){ Class.new(Capsula::Base) }
-  let(:a)    { Struct.new(:b_id) }
-  let(:b)    { Struct.new(:id) }
 
   describe 'User can' do
+    let(:a) { Struct.new(:b_id) }
+    let(:b) { Struct.new(:id) }
+
     it 'declare new encapsulation plan' do
       klass.plan_for(:b, src_key: :b_id, dst_key: :id, dst_loader: ->(i,o){})
       plans = klass.instance_variable_get('@plans_declarations')
@@ -82,7 +83,32 @@ RSpec.describe Capsula do
       expect(objects.first).to be_a(Capsula::Wrapper)
       expect(objects.first.b.id).to be == objects.first.b_id
     end
+  end
 
+  describe 'has_many plan' do
+    let(:a) { Struct.new(:id) }
+    let(:b) { Struct.new(:a_id) }
+
+    it 'working' do
+      b_store = [1,2,2,3].map { |a_id| b.new(a_id) }
+      klass.plan_for(
+        :bs,
+        src_key: :id,
+        dst_key: [:a_id],
+        dst_loader: ->(ids,opt){ b_store.select { |b| ids.include?(b.a_id) } }
+      )
+
+      as = [2,3,4].map { |id| a.new(id) }
+      as = klass.new(as).plans(:bs).encapsulate
+
+      expect(as[0]).to respond_to(:bs)
+      expect(as[0]).to be_a(Capsula::Wrapper)
+      expect(as[0].bs.count).to eq(2)
+      expect(as[1].bs.count).to eq(1)
+      expect(as[2].bs.count).to eq(0)
+      expect(as[0].bs[0].a_id).to eq(as[0].id)
+      expect(as[1].bs[0].a_id).to eq(as[1].id)
+    end
   end
 
 end
