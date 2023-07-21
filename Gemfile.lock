@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    capsula (0.0.3)
+    capsula (0.0.4)
 
 GEM
   remote: https://rubygems.org/
@@ -29,7 +29,7 @@ GEM
       guard (~> 2.1)
       guard-compat (~> 1.1)
       rspec (>= 2.99.0, < 4.0)
-    json (2.1.0)
+    json (2.6.3)
     listen (3.1.5)
       rb-fsevent (~> 0.9, >= 0.9.4)
       rb-inotify (~> 0.9, >= 0.9.7)
